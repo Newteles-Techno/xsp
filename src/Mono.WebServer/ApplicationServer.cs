@@ -38,6 +38,8 @@ using System.Threading;
 using System.IO;
 using Mono.WebServer.Log;
 
+using System.Diagnostics;
+
 namespace Mono.WebServer
 {
 	// ApplicationServer runs the main server thread, which accepts client 
@@ -360,15 +362,28 @@ namespace Mono.WebServer
 
 		void RunServer ()
 		{
-			started = true;
-			var args = new SocketAsyncEventArgs ();
-			args.Completed += OnAccept;
-			listen_socket.AcceptAsync (args);
-			if (runner.IsBackground)
-				return;
+			Mutex mutex = new Mutex(initiallyOwned: false, $"XSP{Process.GetCurrentProcess().Id}");
+			try
+			{
+				mutex.WaitOne();
 
-			while (true) // Just sleep until we're aborted.
-				Thread.Sleep (1000000);
+				started = true;
+				var args = new SocketAsyncEventArgs();
+				args.Completed += OnAccept;
+				listen_socket.AcceptAsync(args);
+				if (runner.IsBackground)
+					return;
+
+				while (true) // Just sleep until we're aborted.
+					Thread.Sleep(1000000);
+			}
+			catch
+            {
+			}
+            finally
+            {
+				mutex.ReleaseMutex();
+            }
 		}
 
 		void OnAccept (object sender, SocketAsyncEventArgs e)
